@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="dcaba7ec-834e-4685-a135-be66d99dfd3b" name="1">
+        <fileTransfer rootFolder="/scratch/uchicago/qs1" accessType="SFTP" host="wrds-cloud.wharton.upenn.edu" port="22" sshConfigId="3c5271d2-2d51-49a2-94d9-90600ad98df0" sshConfig="jingyuhe@wrds-cloud.wharton.upenn.edu:22 password">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>
