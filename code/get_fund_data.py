@@ -33,7 +33,7 @@ thomas investment objective code
    and is used as a key for joining some databases.
 
 '''
-holdings1 = conn.raw_sql('''select fundno,rdate,fdate,ioc,assets from tfn.s12type1 where ioc not in (1,5,6,7)''')
+holdings1 = conn.raw_sql('''select fundno,rdate,fdate,ioc,assets from tfn.s12type1''')
 holdings1 = holdings1.sort_values(by=['fundno', 'rdate', 'fdate'])
 holdings1.drop_duplicates(['fundno', 'rdate'], inplace=True)
 
@@ -42,7 +42,7 @@ holdings1.drop_duplicates(['fundno', 'rdate'], inplace=True)
 #    only till 2018-12
 mflink = conn.raw_sql('''select fundno,fdate,rdate,wficn from mfl.mflink2 ''')
 
-holdings2 = pd.merge(holdings1, mflink, on=['fundno', 'rdate', 'fdate'], how='left')
+holdings2 = pd.merge(holdings1, mflink, on=['fundno', 'rdate', 'fdate'])
 holdings2.sort_values(by=['wficn', 'rdate', 'assets'], inplace=True)
 holdings2.drop_duplicates(['wficn', 'rdate'], inplace=True)
 holdings2.dropna(subset=['wficn'], inplace=True)
@@ -70,6 +70,7 @@ crspmsf['month'] = crspmsf['date'].apply(lambda x: x[0:7])
 holdings5 = pd.merge(holdings4, crspmsf, on=['permno', 'month'])
 holdings5.rename(columns={'cfacshr': 'cfacshr_fdate'}, inplace=True)
 
+holdings5['month']=holdings5['rdate'].astype(str).apply(lambda x: x[0:7])
 holdings6 = pd.merge(holdings5, crspmsf[['permno', 'date', 'cfacshr', 'month']], on=['permno', 'month'])
 
 qry = '''
@@ -77,10 +78,10 @@ select a.*,round(shares*cfacshr_fdate/b.cfacshr,1) as shares_adj
       from holdings5 as a, crspmsf as b
       where a.permno = b.permno and CAST(SUBSTR(fdate, 1, 4) AS integer) = CAST(SUBSTR(date, 1, 4) AS integer) and CAST(SUBSTR(fdate, 6, 7) AS integer) = CAST(SUBSTR(date, 6, 7) AS integer);
 '''
-holdings6['shares_adj'] = round(holdings6['shares'] * holdings6['cfacshr_fdate'] / holdings5['cfacshr_fdate'], 1)
+holdings6['shares_adj'] = round(holdings6['shares'] * holdings6['cfacshr_fdate'] / holdings6['cfacshr_fdate'], 1)
 holdings6['D'] = holdings6['shares_adj'] * abs(holdings6['prc'])
 
-holdings = holdings6[['wficn', 'month', 'permno', 'D']]
+#holdings = holdings6[['wficn', 'month', 'permno', 'D']]
 holdings.sort_values(by=['wficn', 'month', 'permno'], inplace=True)
 
 ############################################
@@ -149,8 +150,8 @@ SCG : Small capitalization growth
 
 
 '''
-wbrger_obj_cd = ['G', 'GCI', 'IEQ', 'LTG', 'MCG', 'SCG']
-# wbrger_obj_cd=['G', 'G-I', 'AGG', 'GCI', 'GRI', 'GRO', 'LTG', 'MCG','SCG']
+#wbrger_obj_cd = ['G', 'GCI', 'IEQ', 'LTG', 'MCG', 'SCG']
+wbrger_obj_cd=['G', 'G-I', 'AGG', 'GCI', 'GRI', 'GRO', 'LTG', 'MCG','SCG']
 ##############################
 #
 
@@ -161,7 +162,10 @@ names = conn.raw_sql('''select * from crsp.fund_names''')
 fund_summary = conn.raw_sql('''select * from crsp.fund_summary''')
 names.drop_duplicates(subset=['crsp_fundno'], keep='last', inplace=True)
 
+
 # investing on average less than 80% of their assets, excluding cash, in common stocks
+fund_summary['per_com_st']=fund_summary['per_com']*100/(100-fund_summary['per_cash'])
+fund_summary['per_com']=fund_summary['per_com_st']
 per_com = fund_summary.groupby(['crsp_fundno']).apply(
     lambda x: np.nansum(x['per_com']) / np.count_nonzero(x['per_com']))
 per_com = per_com.reset_index()
@@ -325,6 +329,9 @@ for index, row in aum.iterrows():
 total_aum = aum.groupby(['wficn'])['tna_ind'].sum()
 
 returns = returns[~returns['wficn'].isin(total_aum[total_aum > 3].index)]
+
+
+returns=returns[(returns['date'].astype(str)>='1980-01-01')&(returns['date'].astype(str)<'2019-02-01')]
 
 ################## get summary statistics
 '''

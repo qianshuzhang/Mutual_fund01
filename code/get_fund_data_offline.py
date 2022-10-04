@@ -74,22 +74,40 @@ SCG : Small capitalization growth
 
 
 '''
-wbrger_obj_cd = ['G', 'GCI', 'IEQ', 'LTG', 'MCG', 'SCG']
-# wbrger_obj_cd=['G', 'G-I', 'AGG', 'GCI', 'GRI', 'GRO', 'LTG', 'MCG','SCG']
+#wbrger_obj_cd = ['G', 'GCI', 'IEQ', 'LTG', 'MCG', 'SCG']
+crsp_policy_to_exclude = ['C & I', 'Bal', 'Bonds', 'Pfd', 'B & P', 'GS', 'MM', 'TFM']
+lipper_class = ['EIEI', 'G', 'LCCE', 'LCGE', 'LCVE', 'MCCE', 'MCGE', 'MCVE',
+                'MLCE', 'MLGE', 'MLVE', 'SCCE', 'SCGE', 'SCVE']
+lipper_obj_cd = ['CA', 'EI', 'G', 'GI', 'MC', 'MR', 'SG']
+si_obj_cd = ['AGG', 'GMC', 'GRI', 'GRO', 'ING', 'SCG']
+wbrger_obj_cd=['G', 'G-I', 'AGG', 'GCI', 'GRI', 'GRO', 'LTG', 'MCG','SCG']
 ##############################
 #
-
+begin_date='1980-01-01'
+end_date='2019-01-31'
 
 ##############################
-with open('data/style.feather', 'rb') as f:
+with open('../../data/data/style.feather', 'rb') as f:
     style=feather.read_feather(f)
-with open('data/names.feather', 'rb') as f:
+with open('../../data/data/names.feather', 'rb') as f:
     names=feather.read_feather(f)
-with open('data/fund_summary.feather', 'rb') as f:
+with open('../../data/data/fund_summary.feather', 'rb') as f:
     fund_summary=feather.read_feather(f)
 names.drop_duplicates(subset=['crsp_fundno'], keep='last', inplace=True)
 
+style=style[(style['begdt'].astype(str)>=begin_date)&(style['enddt'].astype(str)<=end_date)]
+names=names[(names['chgdt'].astype(str)>=begin_date)&(names['chgenddt'].astype(str)<=end_date)]
+fund_summary=fund_summary[(fund_summary['caldt'].astype(str)>=begin_date)&(fund_summary['caldt'].astype(str)<=end_date)]
+
 # investing on average less than 80% of their assets, excluding cash, in common stocks
+fund_summary['per_cash']=fund_summary['per_cash'].replace(np.nan,0)
+fund_summary['per_pref']=fund_summary['per_pref'].replace(np.nan,0)
+fund_summary['per_eq_oth']=fund_summary['per_eq_oth'].replace(np.nan,0)
+fund_summary['per_com']=fund_summary['per_com'].replace(np.nan,0)
+fund_summary['per_com_st']=(fund_summary['per_com']+fund_summary['per_pref']+fund_summary['per_eq_oth'])*100/(100-fund_summary['per_cash'])
+fund_summary['per_com']=fund_summary['per_com_st']
+
+
 per_com = fund_summary.groupby(['crsp_fundno']).apply(
     lambda x: np.nansum(x['per_com']) / np.count_nonzero(x['per_com']))
 per_com = per_com.reset_index()
@@ -116,7 +134,7 @@ funds2['short_way'] = 1
 funds2 = funds2[['crsp_fundno', 'short_way']]
 funds2.drop_duplicates(inplace=True)
 
-funds4 = pd.merge(funds, style[['crsp_fundno', 'crsp_obj_cd', 'begdt']], on=['crsp_fundno'],
+funds4 = pd.merge(funds2, style[['crsp_fundno', 'crsp_obj_cd', 'begdt']], on=['crsp_fundno'],
                   sort=['crsp_fundno', 'begdt'])
 funds4['flipper'] = 0
 funds4.loc[~funds4['crsp_obj_cd'].str[0:3].isin(['EDC', 'EDY']), 'flipper'] = 1
@@ -142,7 +160,7 @@ funds8 = funds7[(~funds7['namex'].str.contains('index')) & (~funds7['namex'].str
                 (~funds7['namex'].str.contains('2040')) & (~funds7['namex'].str.contains('2045')) &
                 (~funds7['namex'].str.contains('2050')) & (~funds7['namex'].str.contains('2055'))]
 
-with open('data/mflink.feather', 'rb') as f:
+with open('../../data/data/mflink.feather', 'rb') as f:
     mflink=feather.read_feather(f)
 
 equity_funds = pd.merge(funds8, mflink, on='crsp_fundno')
@@ -157,14 +175,15 @@ with open('holdings.feather','wb') as f:
 ############################################
 # part 3
 ############################################
-with open('data/tna_ret_nav.feather', 'rb') as f:
+with open('../../data/data/tna_ret_nav.feather', 'rb') as f:
     tna_ret_nav=feather.read_feather(f)
+tna_ret_nav=tna_ret_nav[(tna_ret_nav['caldt'].astype(str)>=begin_date)&(tna_ret_nav['caldt'].astype(str)<=end_date)]
 
 returns1 = pd.merge(equity_funds, tna_ret_nav, on='crsp_fundno')
 returns1.rename(columns={'caldt': 'date'}, inplace=True)
 
 # compute gross return
-with open('data/fund_fees.feather', 'rb') as f:
+with open('../../data/data/fund_fees.feather', 'rb') as f:
     fund_fees=feather.read_feather(f)
 returns2 = pd.merge(returns1, fund_fees, on='crsp_fundno')
 returns2 = returns2[(returns2['date'] >= returns2['begdt_y']) & (returns2['date'] <= returns2['enddt'])]
@@ -256,12 +275,13 @@ for index, row in aum.iterrows():
 total_aum = aum.groupby(['wficn'])['tna_ind'].sum()
 
 returns = returns[~returns['wficn'].isin(total_aum[total_aum > 3].index)]
-
+returns=returns[(returns['date'].astype(str)>=begin_date)&(returns['date'].astype(str)<=end_date)]
 ################## get summary statistics
 '''
 
 with open('returns.feather','rb') as f:
     returns=feather.read_feather(f)
+returns=returns[(returns['date'].astype(str)>='1980-01-01')&(returns['date'].astype(str)<'2019-02-01')]
 '''
 list = ['turnover', 'age', 'flow', 'exp_ratio', 'mtna', 'vol']
 
@@ -300,7 +320,7 @@ for i in ['Num', 'Mean', 'Std', 'Med', 'p10', 'p90']:
     summary[i] = eval(i)
 summary.index = list
 
-with open('data/ff_monthly.feather', 'rb') as f:
+with open('../../data/data/ff_monthly.feather', 'rb') as f:
     ff_monthly=feather.read_feather(f)
 ff_monthly['date'] = ff_monthly['dateff']
 ret_ff = pd.merge(returns, ff_monthly, on='date', how='left')
@@ -367,7 +387,7 @@ summary_all = pd.concat([reg_summary, summary])
 ####
 
 ##################### Luck versus Skill in the Cross‐Section of Mutual Fund Returns - FAMA - 2010 ############
-with open('data/ff_monthly.feather', 'rb') as f:
+with open('../../data/data/ff_monthly.feather', 'rb') as f:
     ff_monthly=feather.read_feather(f)
 ff_monthly['date'] = ff_monthly['dateff']
 ff_monthly = ff_monthly[
